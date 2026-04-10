@@ -1,0 +1,599 @@
+import { useState, useEffect } from 'react'
+import { Table, Form, Input, Select, Button, Tag, Modal, InputNumber, Descriptions, Spin, message, Space } from 'antd'
+import api from '../../utils/api'
+import { formatTime } from '../../utils/time'
+import { useUserStore } from '../../stores/userStore'
+
+function Merchants() {
+  const { isRam, hasRamPermission } = useUserStore()
+  const canEditChannel = !isRam || hasRamPermission('channel')
+
+  const [loading, setLoading] = useState(false)
+
+  // 商户列表
+  const [merchants, setMerchants] = useState([])
+  const [total, setTotal] = useState(0)
+  const [searchForm, setSearchForm] = useState({ merchantId: '', name: '', status: '' })
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 20 })
+
+  // 编辑
+  const [showEdit, setShowEdit] = useState(false)
+  const [editForm, setEditForm] = useState(null)
+  const [editLoading, setEditLoading] = useState(false)
+
+  // 详情
+  const [showDetail, setShowDetail] = useState(false)
+  const [detailData, setDetailData] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+
+  // 支付组列表
+  const [payGroups, setPayGroups] = useState([])
+
+  const isEnabledStatus = (status) => status === 'active' || status === 'approved'
+
+  const getStatusTag = (status) => {
+    const map = {
+      inactive: { color: 'warning', text: '未开通' },
+      active: { color: 'success', text: '正常' },
+      paused: { color: 'warning', text: '已暂停' },
+      banned: { color: 'error', text: '已封禁' },
+      approved: { color: 'success', text: '正常' },
+      disabled: { color: 'warning', text: '已暂停' }
+    }
+    const v = map[status] || { color: 'default', text: status || '未知' }
+    return <Tag color={v.color}>{v.text}</Tag>
+  }
+
+  const fetchMerchants = async (page = pagination.current, pageSize = pagination.pageSize) => {
+    setLoading(true)
+    try {
+      const res = await api.get('/api/admin/merchants', {
+        params: { page, pageSize, ...searchForm }
+      })
+      if (res.data.code === 0) {
+        setMerchants(res.data.data.list || [])
+        setTotal(res.data.data.total || 0)
+        setPagination({ ...pagination, current: page, pageSize })
+      }
+    } catch (error) {
+      message.error('获取商户列表失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const formatMoney = (v) => parseFloat(v || 0).toFixed(2)
+
+  // 查看商户详情
+  const viewDetail = async (row) => {
+    setDetailData(row)
+    setShowDetail(true)
+    setDetailLoading(true)
+    try {
+      const res = await api.get('/api/admin/merchants/stats', { params: { merchantId: row.merchant_id } })
+      if (res.data.code === 0) {
+        setDetailData({ ...row, ...res.data.data })
+      }
+    } catch (error) {
+      console.error('获取详情失败:', error)
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  const editMerchant = (row) => {
+    // 编辑时，将费率转换为百分比显示
+    setEditForm({ 
+      ...row,
+      fee_rate_percent: row.fee_rate !== null && row.fee_rate !== undefined ? parseFloat((row.fee_rate * 100).toFixed(2)) : null,
+      pay_group_id: row.pay_group_id || null
+    })
+    setShowEdit(true)
+  }
+
+  const saveMerchant = async () => {
+    setEditLoading(true)
+    try {
+      // 将百分比转回小数
+      const submitData = {
+        merchant_id: editForm.merchant_id,
+        name: editForm.name,
+        pay_group_id: editForm.pay_group_id || null,
+        fee_rate: editForm.fee_rate_percent !== null && editForm.fee_rate_percent !== undefined 
+          ? editForm.fee_rate_percent / 100 
+          : null
+      }
+      
+      const res = await api.post('/api/admin/merchants/update', submitData)
+      if (res.data.code === 0) {
+        message.success('保存成功')
+        setShowEdit(false)
+        fetchMerchants()
+      } else {
+        message.error(res.data.msg)
+      }
+    } catch (error) {
+      message.error('保存失败')
+    } finally {
+      setEditLoading(false)
+    }
+  }
+
+  const createMerchantUser = async () => {
+    let emailValue = ''
+    Modal.confirm({
+      title: '创建商户账号',
+      content: (
+        <div>
+          <p style={{ marginBottom: 12 }}>将生成随机用户名与密码（请及时保存）</p>
+          <Input 
+            placeholder="请输入商户邮箱（必填�? 
+            onChange={(e) => { emailValue = e.target.value }}
+          />
+        </div>
+      ),
+      onOk: async () => {
+        if (!emailValue || !emailValue.trim()) {
+          message.error('请输入邮�?)
+          return Promise.reject()
+        }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(emailValue)) {
+          message.error('邮箱格式不正�?)
+          return Promise.reject()
+        }
+        try {
+          const res = await api.post('/api/admin/merchants/create-user', { email: emailValue.trim() })
+          if (res.data.code === 0) {
+            const data = res.data.data || {}
+            Modal.info({
+              title: '创建成功（请保存�?,
+              content: (
+                <div style={{ fontFamily: 'monospace' }}>
+                  <div>userId: {data.userId}</div>
+                  <div>username: {data.username}</div>
+                  <div>password: {data.password}</div>
+                  <div>email: {data.email}</div>
+                </div>
+              )
+            })
+            fetchMerchants(1)
+          } else {
+            message.error(res.data.msg)
+          }
+        } catch (e) {
+          message.error('创建失败')
+        }
+      }
+    })
+  }
+
+  const activateMerchant = async (row) => {
+    Modal.confirm({
+      title: '开通商�?,
+      content: '开通后将生�?PID/KEY（请告知商户妥善保存）。确定开通吗�?,
+      onOk: async () => {
+        try {
+          const res = await api.post('/api/admin/merchants/activate', { merchantId: row.merchant_id })
+          if (res.data.code === 0) {
+            const data = res.data.data || {}
+            if (data.pid || data.apiKey) {
+              Modal.info({
+                title: '已开通（请保存）',
+                content: (
+                  <div style={{ fontFamily: 'monospace' }}>
+                    <div>PID: {data.pid || '-'}</div>
+                    <div>KEY: {data.apiKey || '-'}</div>
+                  </div>
+                )
+              })
+            } else {
+              message.success(res.data.msg || '已开�?)
+            }
+            fetchMerchants()
+          } else {
+            message.error(res.data.msg)
+          }
+        } catch (e) {
+          message.error('开通失�?)
+        }
+      }
+    })
+  }
+
+  const pauseMerchant = async (row) => {
+    Modal.confirm({
+      title: '暂停商户',
+      content: '暂停后该商户将无法发起支付。确定暂停吗�?,
+      onOk: async () => {
+        try {
+          const res = await api.post('/api/admin/merchants/pause', { merchantId: row.merchant_id })
+          if (res.data.code === 0) {
+            message.success('已暂�?)
+            fetchMerchants()
+          } else {
+            message.error(res.data.msg)
+          }
+        } catch (e) {
+          message.error('操作失败')
+        }
+      }
+    })
+  }
+
+  const banMerchant = async (row) => {
+    Modal.confirm({
+      title: '封禁商户',
+      content: '封禁后该商户将无法发起支付。确定封禁吗�?,
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          const res = await api.post('/api/admin/merchants/ban', { merchantId: row.merchant_id })
+          if (res.data.code === 0) {
+            message.success('已封�?)
+            fetchMerchants()
+          } else {
+            message.error(res.data.msg)
+          }
+        } catch (e) {
+          message.error('操作失败')
+        }
+      }
+    })
+  }
+
+  const restoreMerchant = async (row) => {
+    Modal.confirm({
+      title: '恢复商户',
+      content: '恢复后该商户可继续发起支付。确定恢复吗�?,
+      onOk: async () => {
+        try {
+          const res = await api.post('/api/admin/merchants/restore', { merchantId: row.merchant_id })
+          if (res.data.code === 0) {
+            message.success('已恢�?)
+            fetchMerchants()
+          } else {
+            message.error(res.data.msg)
+          }
+        } catch (e) {
+          message.error('操作失败')
+        }
+      }
+    })
+  }
+
+  const resetMerchantPassword = async (row) => {
+    Modal.confirm({
+      title: '重置商户密码',
+      content: '将生成新�?2位随机密码（请及时保存并发给商户）。确定重置吗�?,
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          const res = await api.post('/api/admin/merchants/reset-password', { merchantId: row.merchant_id })
+          if (res.data.code === 0) {
+            const pwd = res.data.data?.password
+            Modal.info({
+              title: '重置成功（新密码�?,
+              content: <div style={{ fontFamily: 'monospace' }}>{pwd || '-'}</div>
+            })
+          } else {
+            message.error(res.data.msg)
+          }
+        } catch (e) {
+          message.error('重置失败')
+        }
+      }
+    })
+  }
+
+  useEffect(() => {
+    fetchMerchants()
+    fetchPayGroups()
+  }, [])
+
+  // 获取支付组列�?
+  const fetchPayGroups = async () => {
+    try {
+      const res = await api.get('/api/admin/pay/pay-groups')
+      if (res.data.code === 0) {
+        setPayGroups(res.data.data || [])
+      }
+    } catch (error) {
+      console.error('获取支付组失�?', error)
+    }
+  }
+
+  // 获取支付组名�?
+  const getPayGroupName = (payGroupId) => {
+    if (!payGroupId) return '使用默认�?
+    const group = payGroups.find(g => g.id === payGroupId)
+    return group ? group.name : '未知'
+  }
+
+  const merchantColumns = [
+    { title: '商户�?, dataIndex: 'merchant_id', width: 100 },
+    { title: '商户名称', dataIndex: 'name', width: 120, ellipsis: true },
+    {
+      title: '费率',
+      dataIndex: 'fee_rate',
+      width: 80,
+      align: 'center',
+      render: (v) => {
+        if (v === null || v === undefined) {
+          return <span style={{ color: '#999' }}>未设置</span>
+        }
+        return <span style={{ color: '#1890ff' }}>{(v * 100).toFixed(2)}%</span>
+      }
+    },
+    {
+      title: '支付组',
+      dataIndex: 'pay_group_id',
+      width: 100,
+      render: (v) => {
+        if (!v) {
+          return <Tag color="default">-</Tag>
+        }
+        const group = payGroups.find(g => g.id === v)
+        if (group) {
+          return <Tag color="blue">{group.name}</Tag>
+        }
+        return <Tag color="default">-</Tag>
+      }
+    },
+    {
+      title: '日交易',
+      children: [
+        {
+          title: '交易额',
+          dataIndex: 'day_money',
+          width: 90,
+          align: 'right',
+          render: (v) => <span style={{ color: '#1890ff' }}>¥{formatMoney(v)}</span>
+        },
+        {
+          title: '手续费',
+          dataIndex: 'day_fee',
+          width: 80,
+          align: 'right',
+          render: (v) => <span style={{ color: '#52c41a' }}>¥{formatMoney(v)}</span>
+        }
+      ]
+    },
+    {
+      title: '周交�?,
+      children: [
+        {
+          title: '交易�?,
+          dataIndex: 'week_money',
+          width: 100,
+          align: 'right',
+          render: (v) => <span style={{ color: '#1890ff' }}>¥{formatMoney(v)}</span>
+        },
+        {
+          title: '手续�?,
+          dataIndex: 'week_fee',
+          width: 90,
+          align: 'right',
+          render: (v) => <span style={{ color: '#52c41a' }}>¥{formatMoney(v)}</span>
+        }
+      ]
+    },
+    {
+      title: '状�?,
+      dataIndex: 'status',
+      width: 70,
+      align: 'center',
+      render: (v) => getStatusTag(v)
+    },
+    {
+      title: '操作',
+      width: 150,
+      fixed: 'right',
+      render: (_, row) => (
+        <>
+          <Button type="link" size="small" onClick={() => viewDetail(row)}>详情</Button>
+          <Button type="link" size="small" onClick={() => editMerchant(row)}>编辑</Button>
+          {row.status === 'inactive' && (
+            <Button type="link" size="small" onClick={() => activateMerchant(row)}>开�?/Button>
+          )}
+          {isEnabledStatus(row.status) && (
+            <>
+              <Button type="link" size="small" onClick={() => pauseMerchant(row)}>暂停</Button>
+              <Button type="link" size="small" danger onClick={() => banMerchant(row)}>封禁</Button>
+              <Button type="link" size="small" danger onClick={() => resetMerchantPassword(row)}>重置密码</Button>
+            </>
+          )}
+          {(row.status === 'paused' || row.status === 'disabled' || row.status === 'banned') && (
+            <>
+              <Button type="link" size="small" onClick={() => restoreMerchant(row)}>恢复</Button>
+              <Button type="link" size="small" danger onClick={() => resetMerchantPassword(row)}>重置密码</Button>
+            </>
+          )}
+        </>
+      )
+    }
+  ]
+
+  return (
+    <div>
+      <h2 className="page-title">商户管理</h2>
+
+      <div className="filter-bar" style={{ marginBottom: 16 }}>
+        <Form layout="inline">
+          <Form.Item label="商户�?>
+            <Input
+              value={searchForm.merchantId}
+              onChange={(e) => setSearchForm({ ...searchForm, merchantId: e.target.value })}
+              placeholder="输入商户�?
+              allowClear
+              style={{ width: 150 }}
+            />
+          </Form.Item>
+          <Form.Item label="商户名称">
+            <Input
+              value={searchForm.name}
+              onChange={(e) => setSearchForm({ ...searchForm, name: e.target.value })}
+              placeholder="输入名称"
+              allowClear
+              style={{ width: 150 }}
+            />
+          </Form.Item>
+          <Form.Item label="状�?>
+            <Select
+              value={searchForm.status}
+              onChange={(v) => setSearchForm({ ...searchForm, status: v })}
+              placeholder="全部"
+              allowClear
+              style={{ width: 100 }}
+            >
+              <Select.Option value="inactive">未开�?/Select.Option>
+              <Select.Option value="active">正常</Select.Option>
+              <Select.Option value="paused">已暂�?/Select.Option>
+              <Select.Option value="banned">已封�?/Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" onClick={() => fetchMerchants(1)}>搜索</Button>
+          </Form.Item>
+          <Form.Item>
+            <Button onClick={createMerchantUser}>创建商户</Button>
+          </Form.Item>
+        </Form>
+      </div>
+      
+      <Table
+        columns={merchantColumns}
+        dataSource={merchants}
+        loading={loading}
+        rowKey="merchant_id"
+        pagination={{
+          ...pagination,
+          total,
+          showSizeChanger: true,
+          pageSizeOptions: [20, 50],
+          onChange: (page, pageSize) => fetchMerchants(page, pageSize)
+        }}
+        scroll={{ x: 'max-content' }}
+        style={{ width: '100%' }}
+        bordered
+      />
+
+      {/* 商户详情弹窗 */}
+      <Modal
+        title="商户详情"
+        open={showDetail}
+        onCancel={() => setShowDetail(false)}
+        footer={null}
+        width={650}
+      >
+        <Spin spinning={detailLoading}>
+          {detailData && (
+            <Descriptions column={2} bordered size="small">
+              <Descriptions.Item label="商户�?>{detailData.merchant_id}</Descriptions.Item>
+              <Descriptions.Item label="商户名称">{detailData.name}</Descriptions.Item>
+              <Descriptions.Item label="联系方式">{detailData.contact || '-'}</Descriptions.Item>
+              <Descriptions.Item label="费率">
+                {detailData.fee_rate !== null && detailData.fee_rate !== undefined 
+                  ? <span style={{ color: '#1890ff' }}>{(detailData.fee_rate * 100).toFixed(2)}%</span>
+                  : <span style={{ color: '#999' }}>默认通道费率</span>}
+              </Descriptions.Item>
+              <Descriptions.Item label="状�?>
+                {getStatusTag(detailData.status)}
+              </Descriptions.Item>
+              <Descriptions.Item label="加入时间">{formatTime(detailData.joined_at)}</Descriptions.Item>
+              
+              <Descriptions.Item label="今日交易�? span={1}>
+                <span style={{ color: '#1890ff', fontWeight: 600 }}>¥{formatMoney(detailData.day_money)}</span>
+              </Descriptions.Item>
+              <Descriptions.Item label="今日手续�? span={1}>
+                <span style={{ color: '#52c41a', fontWeight: 600 }}>¥{formatMoney(detailData.day_fee)}</span>
+              </Descriptions.Item>
+              
+              <Descriptions.Item label="本周交易�? span={1}>
+                <span style={{ color: '#1890ff', fontWeight: 600 }}>¥{formatMoney(detailData.week_money)}</span>
+              </Descriptions.Item>
+              <Descriptions.Item label="本周手续�? span={1}>
+                <span style={{ color: '#52c41a', fontWeight: 600 }}>¥{formatMoney(detailData.week_fee)}</span>
+              </Descriptions.Item>
+              
+              <Descriptions.Item label="本月交易�? span={1}>
+                <span style={{ color: '#1890ff', fontWeight: 600 }}>¥{formatMoney(detailData.month_money)}</span>
+              </Descriptions.Item>
+              <Descriptions.Item label="本月手续�? span={1}>
+                <span style={{ color: '#52c41a', fontWeight: 600 }}>¥{formatMoney(detailData.month_fee)}</span>
+              </Descriptions.Item>
+              
+              <Descriptions.Item label="累计交易�? span={1}>
+                <span style={{ color: '#1890ff', fontWeight: 600, fontSize: 16 }}>¥{formatMoney(detailData.total_money)}</span>
+              </Descriptions.Item>
+              <Descriptions.Item label="累计手续�? span={1}>
+                <span style={{ color: '#52c41a', fontWeight: 600, fontSize: 16 }}>¥{formatMoney(detailData.total_fee)}</span>
+              </Descriptions.Item>
+            </Descriptions>
+          )}
+        </Spin>
+      </Modal>
+
+      {/* 编辑商户弹窗 */}
+      <Modal
+        title="编辑商户"
+        open={showEdit}
+        onCancel={() => setShowEdit(false)}
+        onOk={saveMerchant}
+        confirmLoading={editLoading}
+        width={500}
+      >
+        {editForm && (
+          <Form layout="horizontal" labelCol={{ span: 6 }}>
+            <Form.Item label="商户�?>
+              <span>{editForm.merchant_id}</span>
+            </Form.Item>
+            <Form.Item label="商户名称">
+              <Input
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+              />
+            </Form.Item>
+            <Form.Item label="费率 (%)">
+              <InputNumber
+                value={editForm.fee_rate_percent}
+                onChange={(v) => setEditForm({ ...editForm, fee_rate_percent: v })}
+                min={0}
+                max={100}
+                step={0.01}
+                precision={2}
+                placeholder="留空使用通道费率"
+                style={{ width: 150 }}
+                disabled={!canEditChannel}
+              />
+              <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>
+                {!canEditChannel ? '无通道权限，不可修改费�? : '留空表示使用通道费率�?表示不收�?}
+              </div>
+            </Form.Item>
+            <Form.Item label="支付�?>
+              <Select
+                value={editForm.pay_group_id}
+                onChange={(v) => setEditForm({ ...editForm, pay_group_id: v })}
+                allowClear
+                placeholder="使用默认支付�?
+                style={{ width: '100%' }}
+                disabled={!canEditChannel}
+              >
+                {payGroups.map(g => (
+                  <Select.Option key={g.id} value={g.id}>
+                    {g.name} {g.is_default === 1 && <Tag color="gold" style={{ marginLeft: 8 }}>默认</Tag>}
+                  </Select.Option>
+                ))}
+              </Select>
+              <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>
+                {!canEditChannel ? '无通道权限，不可修改支付组' : '留空表示使用系统默认支付�?}
+              </div>
+            </Form.Item>
+          </Form>
+        )}
+      </Modal>
+    </div>
+  )
+}
+
+export default Merchants

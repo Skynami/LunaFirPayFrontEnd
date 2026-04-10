@@ -1,0 +1,180 @@
+/* 公共顶部导航栏样式 */
+.header {
+  background: rgba(37, 99, 235, 0.95);
+  backdrop-filter: blur(10px);
+  padding: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.headerContainer {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 40px;
+  height: 70px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: 20px;
+  align-items: center;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.logoImg {
+  height: 40px;
+  transition: transform 0.3s;
+}
+
+.logo:hover .logoImg {
+  transform: scale(1.05);
+}
+
+.nav {
+  display: flex;
+  gap: 32px;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.navLink {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 15px;
+  font-weight: 500;
+  transition: all 0.3s;
+  cursor: pointer;
+  position: relative;
+  padding: 8px 0;
+}
+
+.navLink:hover {
+  color: #fff;
+}
+
+.navLink.active {
+  color: #fff;
+  font-weight: 600;
+}
+
+.navLink.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #fff;
+  border-radius: 1px;
+}
+
+.headerButtons {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.headerButtons :global(.ant-btn) {
+  height: 36px;
+  padding: 4px 16px;
+  font-size: 14px;
+  border-radius: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.headerButtons :global(.ant-space) {
+  display: flex;
+  align-items: center;
+}
+
+.headerButtons :global(.ant-space-item) {
+  display: flex;
+  align-items: center;
+}
+
+.mobileNavToggle {
+  display: none !important;
+  color: #fff !important;
+  border: none !important;
+}
+
+.mobileNavToggle:hover,
+.mobileNavToggle:focus {
+  color: #fff !important;
+}
+
+/* 响应式设计 */
+@media (max-width: 992px) {
+  .headerContainer {
+    padding: 0 20px;
+    column-gap: 14px;
+  }
+
+  .nav {
+    gap: 24px;
+  }
+}
+
+@media (max-width: 768px) {
+  .headerContainer {
+    padding: 0 16px;
+    height: 64px;
+    grid-template-columns: auto auto;
+    justify-content: space-between;
+  }
+
+  .logoImg {
+    height: 36px;
+  }
+
+  .nav {
+    display: none;
+  }
+
+  .headerButtons {
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .mobileNavToggle {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    padding: 4px 8px !important;
+  }
+
+  .headerButtons :global(.ant-space) {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .logoImg {
+    height: 32px;
+  }
+
+  .headerContainer {
+    padding: 0 10px;
+    column-gap: 8px;
+  }
+
+  .headerButtons :global(.ant-btn) {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+}

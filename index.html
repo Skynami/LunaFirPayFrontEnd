@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>支付平台</title>
+  <link rel="icon" type="image/png" href="/logo.png">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&family=Source+Sans+Pro:wght@200;300;400;600;700;900&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Cloudflare Turnstile -->
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  
+  <script>
+    (function () {
+      function applyTitle(config) {
+        if (config && config.siteName) {
+          document.title = config.siteName;
+        }
+      }
+
+      fetch('/api/system/config', { cache: 'no-store' })
+        .then(function (res) {
+          if (!res.ok) throw new Error('system config not found');
+          return res.json();
+        })
+        .then(function (payload) {
+          return payload && payload.code === 0 ? payload.data : null;
+        })
+        .then(function (config) {
+          if (!config) throw new Error('invalid system config');
+          applyTitle(config);
+        })
+        .catch(function () {
+          return fetch('/site-config.json', { cache: 'no-store' })
+            .then(function (res) {
+              if (!res.ok) throw new Error('site-config not found');
+              return res.json();
+            })
+            .then(function (config) {
+              applyTitle(config);
+            });
+        })
+        .catch(function () {
+          // 使用默认标题，不阻断页面渲染
+        });
+    })();
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>
