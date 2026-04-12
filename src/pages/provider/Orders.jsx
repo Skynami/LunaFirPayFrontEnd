@@ -60,6 +60,16 @@ function Orders() {
     if (row.refund_status === 1) {
       return { text: '已退款', color: 'red' }
     }
+
+    // 退款失败
+    if (row.refund_status === 2) {
+      return { text: '退款失败', color: 'error' }
+    }
+
+    // 测试支付订单已取消（仅测试支付）
+    if (row.order_type === 'test' && row.status === 2) {
+      return { text: '已取消', color: 'default' }
+    }
     
     // 已过期/已关闭
     if (row.status === 2) {
@@ -348,6 +358,21 @@ function Orders() {
         return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>
       }
     },
+    {
+      title: '理由',
+      dataIndex: 'refund_reason',
+      width: 180,
+      ellipsis: true,
+      render: (_, row) => {
+        if (row.refund_status === 2) {
+          return row.refund_reason || '退款失败'
+        }
+        if (row.order_type === 'test' && row.status === 2 && row.refund_status !== 1) {
+          return row.refund_reason || '测试支付用户取消'
+        }
+        return '-'
+      }
+    },
     { 
       title: '时间', 
       width: 170,
@@ -525,6 +550,16 @@ function Orders() {
                   <span style={{ color: '#ff4d4f' }}>¥{formatMoney(currentOrder.refund_money)}</span>
                 </Descriptions.Item>
               </>
+            )}
+            {currentOrder.refund_status === 2 && (
+              <Descriptions.Item label="退款失败原因" span={2}>
+                <span style={{ color: '#ff4d4f' }}>{currentOrder.refund_reason || '未知原因'}</span>
+              </Descriptions.Item>
+            )}
+            {currentOrder.order_type === 'test' && currentOrder.status === 2 && currentOrder.refund_status !== 1 && (
+              <Descriptions.Item label="取消原因" span={2}>
+                {currentOrder.refund_reason || '测试支付用户取消'}
+              </Descriptions.Item>
             )}
             <Descriptions.Item label="回调地址" span={2}>
               <span style={{ wordBreak: 'break-all', fontSize: 12 }}>{currentOrder.notify_url || '-'}</span>

@@ -27,6 +27,7 @@ import ProviderRAM from './pages/provider/RAM'
 import ProviderSettlements from './pages/provider/Settlements'
 import ProviderDomains from './pages/provider/Domains'
 import ProviderAnnouncements from './pages/provider/Announcements'
+import ProviderCleanup from './pages/provider/Cleanup'
 import { loadSiteConfig } from './utils/siteConfig'
 
 // 路由守卫组件
@@ -176,6 +177,7 @@ function App() {
         <Route path="settlements" element={<ProviderSettlements />} />
         <Route path="domains" element={<ProviderDomains />} />
         <Route path="announcements" element={<ProviderAnnouncements />} />
+        <Route path="cleanup" element={<ProviderCleanup />} />
       </Route>
       
       {/* 兼容旧的 /provider 路由，重定向到 /admin */}

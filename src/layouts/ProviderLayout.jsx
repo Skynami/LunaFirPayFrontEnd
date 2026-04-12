@@ -16,7 +16,8 @@ import {
   CloseOutlined,
   WalletOutlined,
   GlobalOutlined,
-  NotificationOutlined
+  NotificationOutlined,
+  DeleteOutlined
 } from '@ant-design/icons'
 import { useUserStore } from '../stores/userStore'
 import { useIsMobile } from '../utils/useIsMobile'
@@ -80,6 +81,11 @@ function ProviderLayout() {
       key: '/admin/announcements',
       icon: <NotificationOutlined />,
       label: '公告管理'
+    }] : []),
+    ...(canViewSettings ? [{
+      key: '/admin/cleanup',
+      icon: <DeleteOutlined />,
+      label: '清理记录'
     }] : []),
     // 个人资料：所有用户都可以访问（RAM用户可以修改密码）
     {
