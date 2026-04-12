@@ -36,6 +36,7 @@ function ProviderLayout() {
   const canViewMerchants = !isRam || hasRamPermission('merchant')
   const canViewChannels = !isRam || hasRamPermission('channel')
   const canViewSettings = !isRam || hasRamPermission('settings')
+  const canViewCleanup = !isRam || hasRamPermission('finance') || hasRamPermission('order') || hasRamPermission('settings')
 
   const menuItems = [
     {
@@ -82,7 +83,7 @@ function ProviderLayout() {
       icon: <NotificationOutlined />,
       label: '公告管理'
     }] : []),
-    ...(canViewSettings ? [{
+    ...(canViewCleanup ? [{
       key: '/admin/cleanup',
       icon: <DeleteOutlined />,
       label: '清理记录'

@@ -44,6 +44,26 @@ function Orders() {
   const [refundInfo, setRefundInfo] = useState(null)  // 退款查询信息
   const [refundQueryLoading, setRefundQueryLoading] = useState(false)
 
+  const isDirectOrder = (row) => row?.direct_mode && row.direct_mode !== 'none'
+  const isCallbackRequired = (row) => {
+    if (!row) return false
+    if (typeof row.callback_required !== 'undefined') {
+      return Number(row.callback_required) === 1
+    }
+    return !isDirectOrder(row) && !!row.notify_url
+  }
+
+  const getEffectiveNotifyStatus = (row) => {
+    if (!row) return 0
+    if (typeof row.effective_notify_status !== 'undefined') {
+      return Number(row.effective_notify_status)
+    }
+    if (!isCallbackRequired(row)) {
+      return row.status === 1 ? 1 : 0
+    }
+    return Number(row.notify_status || 0)
+  }
+
   // 获取订单状态显示
   // 状态逻辑：
   // - 已完成：支付成功且回调成功 (status=1, notify_status=1)
@@ -70,7 +90,7 @@ function Orders() {
     
     // 已支付
     if (row.status === 1) {
-      if (row.notify_status === 1) {
+      if (!isCallbackRequired(row) || getEffectiveNotifyStatus(row) === 1) {
         return { text: '已完成', color: 'success' }
       } else {
         return { text: '已支付未回调', color: 'blue' }
@@ -247,7 +267,7 @@ function Orders() {
         <div>
           <p>确定要对订单 <strong>{row.trade_no}</strong> 执行商户认账吗？</p>
           <p style={{ color: '#ff4d4f', marginTop: 8 }}>
-            注意：此操作将向您的系统发送支付成功回调，但此订单在平台仍为未支付状态。
+            注意：此操作将向您的系统发送支付成功回调，但此订单在平台仍为未支付 状态。
             如需正常入账，请联系管理员确认。
           </p>
         </div>
@@ -405,11 +425,11 @@ function Orders() {
             {!isRefunded && (
               <>
                 {/* 回调 - 已支付普通订单未回调成功 */}
-                {row.status === 1 && row.notify_status !== 1 && row.order_type !== 'crypto' && (
+                {row.status === 1 && isCallbackRequired(row) && getEffectiveNotifyStatus(row) !== 1 && row.order_type !== 'crypto' && (
                   <Button type="link" size="small" onClick={() => resendNotify(row)}>回调</Button>
                 )}
                 {/* 回调 - 已认账未回调普通订单 */}
-                {row.status === 0 && row.merchant_confirm === 1 && row.notify_status !== 1 && row.order_type !== 'crypto' && (
+                {row.status === 0 && row.merchant_confirm === 1 && isCallbackRequired(row) && getEffectiveNotifyStatus(row) !== 1 && row.order_type !== 'crypto' && (
                   <Button type="link" size="small" onClick={() => resendNotify(row)}>回调</Button>
                 )}
                 {/* 回调 - 已支付加密货币订单 */}
@@ -417,11 +437,18 @@ function Orders() {
                   <Button type="link" size="small" onClick={() => forceNotify(row)}>回调</Button>
                 )}
                 {/* 认账 - 未支付或已过期普通订单 */}
-                {(row.status === 0 || row.status === 2) && row.order_type !== 'crypto' && row.merchant_confirm !== 1 && (
+                {(row.status === 0 || row.status === 2)
+                  && row.order_type !== 'crypto'
+                  && row.merchant_confirm !== 1
+                  && (typeof row.reconcile_allowed !== 'undefined' ? Number(row.reconcile_allowed) === 1 : !isDirectOrder(row))
+                  && (
                   <Button type="link" size="small" style={{ color: '#faad14' }} onClick={() => merchantConfirmNotify(row)}>认账</Button>
                 )}
                 {/* 认账 - 未支付加密货币订单 */}
-                {row.status === 0 && row.order_type === 'crypto' && (
+                {row.status === 0
+                  && row.order_type === 'crypto'
+                  && (typeof row.reconcile_allowed !== 'undefined' ? Number(row.reconcile_allowed) === 1 : !isDirectOrder(row))
+                  && (
                   <Button type="link" size="small" style={{ color: '#faad14' }} onClick={() => cryptoConfirm(row)}>认账</Button>
                 )}
                 {/* 退款 - 已支付普通订单或部分退款订单 */}
@@ -548,12 +575,14 @@ function Orders() {
             </Descriptions.Item>
             {(currentOrder.status === 1 || currentOrder.merchant_confirm === 1) && (
               <Descriptions.Item label="回调状态" span={2}>
-                {currentOrder.notify_status === 1 ? (
+                {!isCallbackRequired(currentOrder) ? (
+                  <Tag color="default">无需回调</Tag>
+                ) : getEffectiveNotifyStatus(currentOrder) === 1 ? (
                   <Tag color="success">已成功</Tag>
                 ) : (
                   <Tag color="warning">未成功</Tag>
                 )}
-                {currentOrder.notify_count > 0 && (
+                {isCallbackRequired(currentOrder) && currentOrder.notify_count > 0 && (
                   <span style={{ marginLeft: 8, color: '#666' }}>
                     已回调 {currentOrder.notify_count} 次
                     {currentOrder.notify_time && <span style={{ marginLeft: 8 }}>({formatTime(currentOrder.notify_time)})</span>}

@@ -49,6 +49,7 @@ function Profile() {
     notify_order_name: '0',
     user_refund: '0',
     auto_approve_merchant: '0',
+    direct_pay_feature_enabled: '1',
     domain_whitelist_enabled: '0'
   })
   const [paymentConfigLoading, setPaymentConfigLoading] = useState(false)
@@ -128,6 +129,7 @@ function Profile() {
           notify_order_name: res.data.data.notify_order_name || '0',
           user_refund: res.data.data.user_refund || '0',
           auto_approve_merchant: res.data.data.auto_approve_merchant || '0',
+          direct_pay_feature_enabled: res.data.data.direct_pay_feature_enabled || '1',
           domain_whitelist_enabled: res.data.data.domain_whitelist_enabled || '0'
         })
 
@@ -783,6 +785,23 @@ function Profile() {
                 <Select
                   value={paymentConfig.domain_whitelist_enabled}
                   onChange={(v) => setPaymentConfig({ ...paymentConfig, domain_whitelist_enabled: v })}
+                  style={{ width: 120 }}
+                >
+                  <Select.Option value="0">关闭</Select.Option>
+                  <Select.Option value="1">开启</Select.Option>
+                </Select>
+              </Form.Item>
+              <Form.Item
+                label="直接收款"
+                extra={
+                  <span style={{ color: '#999' }}>
+                    关闭后商户端将无法使用“直接收款”功能，已有链接也不可访问
+                  </span>
+                }
+              >
+                <Select
+                  value={paymentConfig.direct_pay_feature_enabled}
+                  onChange={(v) => setPaymentConfig({ ...paymentConfig, direct_pay_feature_enabled: v })}
                   style={{ width: 120 }}
                 >
                   <Select.Option value="0">关闭</Select.Option>

@@ -54,6 +54,26 @@ function Orders() {
     return styles[type] || 'default'
   }
 
+  const isDirectOrder = (row) => row?.direct_mode && row.direct_mode !== 'none'
+  const isCallbackRequired = (row) => {
+    if (!row) return false
+    if (typeof row.callback_required !== 'undefined') {
+      return Number(row.callback_required) === 1
+    }
+    return !isDirectOrder(row) && !!row.notify_url
+  }
+
+  const getEffectiveNotifyStatus = (row) => {
+    if (!row) return 0
+    if (typeof row.effective_notify_status !== 'undefined') {
+      return Number(row.effective_notify_status)
+    }
+    if (!isCallbackRequired(row)) {
+      return row.status === 1 ? 1 : 0
+    }
+    return Number(row.notify_status || 0)
+  }
+
   // 获取订单状态信息
   const getOrderStatusInfo = (row) => {
     // 已退款优先
@@ -83,10 +103,10 @@ function Orders() {
     
     // 已支付
     if (row.status === 1) {
-      if (row.notify_status === 1) {
+      if (!isCallbackRequired(row) || getEffectiveNotifyStatus(row) === 1) {
         return { text: '已完成', color: 'success' }
       } else {
-        return { text: '已支付未回调', color: 'blue' }
+        return { text: '已支付待确认', color: 'blue' }
       }
     }
     
@@ -158,7 +178,7 @@ function Orders() {
         trade_no: order.trade_no
       })
       if (res.data.code === 0) {
-        message.success('订单已强制完成，回调已发送')
+        message.success('订单已强制完成')
         fetchOrders()
       } else {
         message.error(res.data.msg || '操作失败')
@@ -196,20 +216,20 @@ function Orders() {
     }
   }
 
-  // 重发回调
-  const resendNotify = async (order) => {
+  // 确认支付
+  const confirmPayment = async (order) => {
     try {
-      const res = await api.post('/api/admin/orders/notify', {
+      const res = await api.post('/api/admin/orders/confirm-payment', {
         trade_no: order.trade_no
       })
       if (res.data.code === 0) {
-        message.success(res.data.msg || '回调成功')
+        message.success(res.data.msg || '确认支付成功')
         fetchOrders()
       } else {
-        message.error(res.data.msg || '回调失败')
+        message.error(res.data.msg || '确认支付失败')
       }
     } catch (error) {
-      message.error('回调失败')
+      message.error('确认支付失败')
     }
   }
 
@@ -233,7 +253,7 @@ function Orders() {
         onClick: () => {
           Modal.confirm({
             title: '强制完成订单',
-            content: '确认强制完成此订单并发送回调通知？',
+            content: '确认强制完成此订单并标记为已支付？',
             onOk: () => forceCompleteOrder(row)
           })
         }
@@ -249,26 +269,27 @@ function Orders() {
         onClick: () => {
           Modal.confirm({
             title: '确认支付',
-            content: '此订单商户已认账，确认后将标记为已支付并发送回调通知，确定继续吗？',
+            content: '此订单商户已认账，确认后将标记为已支付，确定继续吗？',
             onOk: () => forceCompleteOrder(row)
           })
         }
       })
     }
 
-    // 已支付订单可以重发回调
-    if (row.status === 1 && !row.refund_status) {
+    // 已支付订单可做支付确认（待确认或商户认账）
+    if (row.status === 1 && !row.refund_status
+      && (Number(row.confirm_payment_required || 0) === 1
+        || row.merchant_confirm === 1
+        || (isCallbackRequired(row) && getEffectiveNotifyStatus(row) !== 1))) {
       items.push({
-        key: 'notify',
+        key: 'confirm-payment',
         icon: <CheckCircleOutlined />,
-        label: row.merchant_confirm ? '确认入账' : '重发回调',
+        label: '确认支付',
         onClick: () => {
           Modal.confirm({
-            title: row.merchant_confirm ? '确认入账' : '重发回调',
-            content: row.merchant_confirm 
-              ? '此订单商户已认账，确认后将标记为正常入账并发送回调通知，确定继续吗？'
-              : '确认重新发送回调通知吗？',
-            onOk: () => resendNotify(row)
+            title: '确认支付',
+            content: '确认该订单支付状态并完成入账处理吗？',
+            onOk: () => confirmPayment(row)
           })
         }
       })
@@ -528,13 +549,15 @@ function Orders() {
             </Descriptions.Item>
             <Descriptions.Item label="访客IP">{currentOrder.ip || '-'}</Descriptions.Item>
             {currentOrder.status === 1 && (
-              <Descriptions.Item label="回调状态" span={2}>
-                {currentOrder.notify_status === 1 ? (
+              <Descriptions.Item label="支付确认状态" span={2}>
+                {!isCallbackRequired(currentOrder) ? (
+                  <Tag color="default">无需回调</Tag>
+                ) : getEffectiveNotifyStatus(currentOrder) === 1 ? (
                   <Tag color="success">已成功</Tag>
                 ) : (
                   <Tag color="warning">未成功</Tag>
                 )}
-                {currentOrder.notify_count > 0 && (
+                {isCallbackRequired(currentOrder) && currentOrder.notify_count > 0 && (
                   <span style={{ marginLeft: 8, color: '#666' }}>
                     已回调 {currentOrder.notify_count} 次
                     {currentOrder.notify_time && <span style={{ marginLeft: 8 }}>({formatTime(currentOrder.notify_time)})</span>}

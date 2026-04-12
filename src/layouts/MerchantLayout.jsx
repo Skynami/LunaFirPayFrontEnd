@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { Layout, Menu, Button, Dropdown, Tag, message, Drawer } from 'antd'
 import { 
@@ -12,10 +12,12 @@ import {
   WalletOutlined,
   MenuOutlined,
   CloseOutlined,
-  GlobalOutlined
+  GlobalOutlined,
+  QrcodeOutlined
 } from '@ant-design/icons'
 import { useUserStore } from '../stores/userStore'
 import { useIsMobile } from '../utils/useIsMobile'
+import api from '../utils/api'
 
 const { Sider, Header, Content } = Layout
 
@@ -25,6 +27,21 @@ function MerchantLayout() {
   const { user, isRam, ramInfo, hasRamPermission, logout } = useUserStore()
   const isMobile = useIsMobile()
   const [drawerVisible, setDrawerVisible] = useState(false)
+  const [directPayFeatureEnabled, setDirectPayFeatureEnabled] = useState(true)
+
+  useEffect(() => {
+    const loadSystemConfig = async () => {
+      try {
+        const res = await api.get('/api/system/config')
+        if (res?.data?.code === 0) {
+          setDirectPayFeatureEnabled(res.data.data?.directPayFeatureEnabled !== false)
+        }
+      } catch (error) {
+        setDirectPayFeatureEnabled(true)
+      }
+    }
+    loadSystemConfig()
+  }, [])
 
   // RAM 子账户的权限检查
   const canViewOrders = !isRam || hasRamPermission('order')
@@ -49,6 +66,12 @@ function MerchantLayout() {
       icon: <LinkOutlined />,
       label: '服务管理'
     },
+    // 直接收款管理
+    ...(directPayFeatureEnabled ? [{
+      key: '/merchant/direct',
+      icon: <QrcodeOutlined />,
+      label: '直接收款'
+    }] : []),
     // 结算设置需要 finance 或 settings 权限
     ...(canViewFinance || canViewSettings ? [{
       key: '/merchant/settlements',
