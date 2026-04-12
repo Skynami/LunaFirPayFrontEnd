@@ -31,6 +31,13 @@ function Services() {
   const [showEditEmail, setShowEditEmail] = useState(false)
   const [emailLoading, setEmailLoading] = useState(false)
   const [emailForm] = Form.useForm()
+  const [showEditMerchantName, setShowEditMerchantName] = useState(false)
+  const [merchantNameLoading, setMerchantNameLoading] = useState(false)
+  const [merchantNameForm] = Form.useForm()
+
+  const getDisplayLength = (value) => {
+    return Array.from(value || '').reduce((sum, ch) => sum + (ch.charCodeAt(0) > 127 ? 2 : 1), 0)
+  }
 
   const isEnabledStatus = (status) => status === 'active' || status === 'approved'
 
@@ -168,7 +175,7 @@ function Services() {
     try {
       const values = await emailForm.validateFields()
       setEmailLoading(true)
-      const res = await api.post('/api/merchant/profile/email', {
+      const res = await api.post('/api/merchant/profile', {
         email: values.email
       })
       if (res.data.code === 0) {
@@ -183,6 +190,28 @@ function Services() {
       message.error('更新失败')
     } finally {
       setEmailLoading(false)
+    }
+  }
+
+  const updateMerchantName = async () => {
+    try {
+      const values = await merchantNameForm.validateFields()
+      setMerchantNameLoading(true)
+      const res = await api.post('/api/merchant/profile', {
+        merchant_name: values.merchant_name
+      })
+      if (res.data.code === 0) {
+        message.success('商户名称更新成功')
+        setShowEditMerchantName(false)
+        fetchProfile()
+      } else {
+        message.error(res.data.msg)
+      }
+    } catch (error) {
+      if (error.errorFields) return
+      message.error('更新失败')
+    } finally {
+      setMerchantNameLoading(false)
     }
   }
 
@@ -420,7 +449,6 @@ function Services() {
           </Card>
         </Col>
 
-        {/* Telegram 绑定 */}
         <Col xs={24} md={12}>
           <Card title="Telegram 通知">
             {telegramStatus.bound ? (
@@ -467,6 +495,22 @@ function Services() {
                 </Button>
               </>
             )}
+          </Card>
+
+          <Card title="商户名称" style={{ marginTop: 16 }}>
+            <Descriptions column={1} bordered size="small">
+              <Descriptions.Item label="当前显示名称">
+                <span
+                  onClick={() => {
+                    merchantNameForm.setFieldsValue({ merchant_name: profile.merchant_name || '' })
+                    setShowEditMerchantName(true)
+                  }}
+                  style={{ cursor: 'pointer', color: '#1890ff' }}
+                >
+                  {profile.merchant_name || '在线支付'} <span style={{ fontSize: 12 }}>[编辑]</span>
+                </span>
+              </Descriptions.Item>
+            </Descriptions>
           </Card>
         </Col>
 
@@ -598,6 +642,45 @@ function Services() {
           type="info"
           showIcon
         />
+      </Modal>
+
+      <Modal
+        title="设置商户名称"
+        open={showEditMerchantName}
+        onCancel={() => setShowEditMerchantName(false)}
+        onOk={updateMerchantName}
+        confirmLoading={merchantNameLoading}
+        width={420}
+      >
+        <Form form={merchantNameForm} layout="vertical">
+          <Form.Item
+            label="商户名称"
+            name="merchant_name"
+            rules={[
+              {
+                validator: (_, value) => {
+                  const v = String(value || '').trim()
+                  if (getDisplayLength(v) > 16) {
+                    return Promise.reject(new Error('不能超过16个字符（中文按2个字符计算）'))
+                  }
+                  return Promise.resolve()
+                }
+              }
+            ]}
+            extra="可留空；留空时收款页显示“在线支付”。长度限制：16个字符（中文按2个字符计算）"
+          >
+            <Input
+              placeholder="请输入商户名称（留空则显示在线支付）"
+              maxLength={16}
+              onChange={(e) => {
+                const v = e.target.value || ''
+                if (getDisplayLength(v) > 16) {
+                  message.warning('商户名称不能超过16个字符（中文按2个字符计算）')
+                }
+              }}
+            />
+          </Form.Item>
+        </Form>
       </Modal>
 
       {/* Telegram 绑定弹窗 */}

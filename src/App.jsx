@@ -17,6 +17,7 @@ import MerchantServices from './pages/merchant/Services'
 import MerchantRAM from './pages/merchant/RAM'
 import MerchantSettlements from './pages/merchant/Settlements'
 import MerchantDomains from './pages/merchant/Domains'
+import MerchantDirect from './pages/merchant/Direct'
 import ProviderOverview from './pages/provider/Overview'
 import ProviderOrders from './pages/provider/Orders'
 import ProviderMerchants from './pages/provider/Merchants'
@@ -151,6 +152,7 @@ function App() {
         <Route path="overview" element={<MerchantOverview />} />
         <Route path="orders" element={<MerchantOrders />} />
         <Route path="services" element={<MerchantServices />} />
+        <Route path="direct" element={<MerchantDirect />} />
         <Route path="profile" element={<Navigate to="/merchant/services" replace />} />
         <Route path="ram" element={<MerchantRAM />} />
         <Route path="settlements" element={<MerchantSettlements />} />

@@ -12,7 +12,8 @@ import {
   WalletOutlined,
   MenuOutlined,
   CloseOutlined,
-  GlobalOutlined
+  GlobalOutlined,
+  QrcodeOutlined
 } from '@ant-design/icons'
 import { useUserStore } from '../stores/userStore'
 import { useIsMobile } from '../utils/useIsMobile'
@@ -48,6 +49,12 @@ function MerchantLayout() {
       key: '/merchant/services',
       icon: <LinkOutlined />,
       label: '服务管理'
+    },
+    // 直接收款管理
+    {
+      key: '/merchant/direct',
+      icon: <QrcodeOutlined />,
+      label: '直接收款'
     },
     // 结算设置需要 finance 或 settings 权限
     ...(canViewFinance || canViewSettings ? [{
