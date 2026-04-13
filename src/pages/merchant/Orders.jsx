@@ -593,8 +593,10 @@ function Orders() {
                 )}
               </Descriptions.Item>
             )}
-            <Descriptions.Item label="通知地址" span={2}>
-              <span style={{ wordBreak: 'break-all', fontSize: 12 }}>{currentOrder.notify_url || '-'}</span>
+            <Descriptions.Item label={currentOrder.direct_mode === 'fixed' ? '发起Token' : '通知地址'} span={2}>
+              <span style={{ wordBreak: 'break-all', fontSize: 12 }}>
+                {currentOrder.direct_mode === 'fixed' ? (currentOrder.direct_token || '-') : (currentOrder.notify_url || '-')}
+              </span>
             </Descriptions.Item>
             <Descriptions.Item label="跳转地址" span={2}>
               <span style={{ wordBreak: 'break-all', fontSize: 12 }}>{currentOrder.return_url || '-'}</span>

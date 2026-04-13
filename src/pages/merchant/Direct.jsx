@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Card, Row, Col, Switch, Button, message, Input, Space, Form, InputNumber, Table, Tag, Modal, Typography } from 'antd'
+import { Card, Row, Col, Switch, Button, message, Input, Space, Form, InputNumber, Table, Tag, Modal, Typography, Segmented } from 'antd'
 import { CopyOutlined, QrcodeOutlined, PlusOutlined } from '@ant-design/icons'
 import api from '../../utils/api'
 
@@ -33,6 +33,7 @@ function Direct() {
   const [links, setLinks] = useState([])
   const [createForm] = Form.useForm()
   const [qrModal, setQrModal] = useState({ open: false, url: '', title: '' })
+  const [resettingToken, setResettingToken] = useState(false)
 
   const defaultQrUrl = useMemo(() => buildQrPreview(defaultUrl), [defaultUrl])
 
@@ -95,6 +96,7 @@ function Direct() {
       const res = await api.post('/api/merchant/direct/links', {
         amount: values.amount,
         expireHours: values.expireHours,
+        usageMode: values.usageMode || 'single_use',
         reason: values.reason || ''
       })
       if (res.data.code === 0) {
@@ -128,6 +130,23 @@ function Direct() {
     }
   }
 
+  const resetDefaultLinkToken = async () => {
+    setResettingToken(true)
+    try {
+      const res = await api.post('/api/merchant/direct/reset-token')
+      if (res.data.code === 0) {
+        message.success(res.data.msg || '收款链接已更换')
+        await fetchConfig()
+      } else {
+        message.error(res.data.msg || '更换失败')
+      }
+    } catch (error) {
+      message.error('更换失败')
+    } finally {
+      setResettingToken(false)
+    }
+  }
+
   const copyText = async (text) => {
     try {
       await navigator.clipboard.writeText(text)
@@ -151,6 +170,12 @@ function Direct() {
       render: (v) => `¥${Number(v || 0).toFixed(2)}`
     },
     {
+      title: '策略',
+      dataIndex: 'usage_mode',
+      width: 100,
+      render: (v) => (v === 'multi_use' ? <Tag color="blue">长期</Tag> : <Tag>一次性</Tag>)
+    },
+    {
       title: '有效期',
       dataIndex: 'expire_hours',
       width: 120,
@@ -167,7 +192,7 @@ function Direct() {
       dataIndex: 'is_enabled',
       width: 120,
       render: (v, row) => {
-        if (Number(row.is_paid) === 1) return <Tag color="success">已支付</Tag>
+        if ((row.usage_mode || 'single_use') === 'single_use' && Number(row.is_paid) === 1) return <Tag color="success">已完成</Tag>
         if (isLinkExpired(row)) return <Tag color="red">超时</Tag>
         return v === 1 ? <Tag color="green">启用</Tag> : <Tag>停用</Tag>
       }
@@ -217,6 +242,7 @@ function Direct() {
               <Space wrap>
                 <Button icon={<CopyOutlined />} disabled={!defaultUrl} onClick={() => copyText(defaultUrl)}>复制链接</Button>
                 <Button icon={<QrcodeOutlined />} disabled={!defaultUrl} onClick={() => setQrModal({ open: true, url: defaultUrl, title: '默认收款二维码' })}>查看二维码</Button>
+                <Button loading={resettingToken} onClick={resetDefaultLinkToken}>更换链接</Button>
               </Space>
 
               {defaultToken ? <Text type="secondary">Token: {defaultToken}</Text> : null}
@@ -226,9 +252,9 @@ function Direct() {
 
         <Col xs={24} lg={12}>
           <Card title="创建固定金额链接">
-            <Form form={createForm} layout="vertical" initialValues={{ expireHours: 1 }}>
+            <Form form={createForm} layout="vertical" initialValues={{ expireHours: 24, usageMode: 'single_use' }}>
               <Row gutter={12}>
-                <Col span={12}>
+                <Col span={8}>
                   <Form.Item
                     label="固定金额"
                     name="amount"
@@ -237,13 +263,24 @@ function Direct() {
                     <InputNumber min={0.01} step={0.01} precision={2} style={{ width: '100%' }} addonBefore="¥" placeholder="请输入金额" />
                   </Form.Item>
                 </Col>
-                <Col span={12}>
+                <Col span={8}>
                   <Form.Item
                     label="有效期（小时）"
                     name="expireHours"
                     rules={[{ required: true, message: '请输入有效期小时' }]}
                   >
-                    <InputNumber min={1} max={24} precision={0} style={{ width: '100%' }} placeholder="1-24" />
+                    <InputNumber min={1} max={720} precision={0} style={{ width: '100%' }} placeholder="1-720" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item label="有效策略" name="usageMode" rules={[{ required: true, message: '请选择有效策略' }]}>
+                    <Segmented
+                      block
+                      options={[
+                        { label: '一次性有效', value: 'single_use' },
+                        { label: '长期有效', value: 'multi_use' }
+                      ]}
+                    />
                   </Form.Item>
                 </Col>
               </Row>

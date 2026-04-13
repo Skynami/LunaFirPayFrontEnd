@@ -53,12 +53,14 @@ function Cleanup() {
   const [cleanupSettlementUnfinished, setCleanupSettlementUnfinished] = useState(false)
   const [cleanupTestOrders, setCleanupTestOrders] = useState(false)
   const [cleanupUnnotifiedPaid, setCleanupUnnotifiedPaid] = useState(false)
+  const [cleanupExpiredDirectLinks, setCleanupExpiredDirectLinks] = useState(false)
   const [orderStatuses, setOrderStatuses] = useState([])
   const [cleanupRetentionDays, setCleanupRetentionDays] = useState(30)
 
   const [scheduleCleanupSettlementCompleted, setScheduleCleanupSettlementCompleted] = useState(false)
   const [scheduleCleanupSettlementUnfinished, setScheduleCleanupSettlementUnfinished] = useState(false)
   const [scheduleCleanupTestOrders, setScheduleCleanupTestOrders] = useState(false)
+  const [scheduleCleanupExpiredDirectLinks, setScheduleCleanupExpiredDirectLinks] = useState(false)
   const [scheduleOrderStatuses, setScheduleOrderStatuses] = useState([])
   const [scheduleCleanupRetentionDays, setScheduleCleanupRetentionDays] = useState(30)
 
@@ -119,6 +121,7 @@ function Cleanup() {
       setScheduleCleanupSettlementCompleted(settlementScopes.includes('completed'))
       setScheduleCleanupSettlementUnfinished(settlementScopes.includes('unfinished'))
       setScheduleCleanupTestOrders(!!cfg.cleanup_test_orders)
+      setScheduleCleanupExpiredDirectLinks(!!cfg.cleanup_expired_direct_links)
       setScheduleOrderStatuses(Array.isArray(cfg.order_statuses) ? cfg.order_statuses : [])
       setScheduleCleanupRetentionDays(normalizeRetentionDays(cfg.cleanup_retention_days, 30, 1))
     } catch (error) {
@@ -142,13 +145,13 @@ function Cleanup() {
     }
   }
 
-  const validateCleanupOptions = ({ statuses, settlementStatuses, testOrders, unnotifiedPaid, retentionDays, requireMerchant = true, minRetentionDays = 0 }) => {
+  const validateCleanupOptions = ({ statuses, settlementStatuses, testOrders, unnotifiedPaid, expiredDirectLinks, retentionDays, requireMerchant = true, minRetentionDays = 0 }) => {
     if (requireMerchant && !selectAllMerchants && selectedMerchantIds.length === 0) {
       message.warning('请至少选择一个商户，或勾选全部商户')
       return false
     }
 
-    if (statuses.length === 0 && settlementStatuses.length === 0 && !testOrders && !unnotifiedPaid) {
+    if (statuses.length === 0 && settlementStatuses.length === 0 && !testOrders && !unnotifiedPaid && !expiredDirectLinks) {
       message.warning('请至少选择一种清理操作')
       return false
     }
@@ -161,7 +164,7 @@ function Cleanup() {
     return true
   }
 
-  const buildPayload = ({ includeSchedule = true, includeRange = false, statuses, settlementStatuses, testOrders, unnotifiedPaid, retentionDays } = {}) => {
+  const buildPayload = ({ includeSchedule = true, includeRange = false, statuses, settlementStatuses, testOrders, unnotifiedPaid, expiredDirectLinks, retentionDays } = {}) => {
     const cleanupOrders = (statuses || []).length > 0 || !!unnotifiedPaid
     const cleanupSettlementStatuses = [...new Set(settlementStatuses || [])]
 
@@ -174,6 +177,7 @@ function Cleanup() {
       cleanup_settlement_statuses: cleanupSettlementStatuses,
       cleanup_test_orders: !!testOrders,
       cleanup_unnotified_paid: !!unnotifiedPaid,
+      cleanup_expired_direct_links: !!expiredDirectLinks,
       cleanup_retention_days: retentionDays
     }
 
@@ -201,6 +205,7 @@ function Cleanup() {
       settlementStatuses: scheduleSettlementStatuses,
       testOrders: scheduleCleanupTestOrders,
       unnotifiedPaid: false,
+      expiredDirectLinks: scheduleCleanupExpiredDirectLinks,
       retentionDays: scheduleCleanupRetentionDays,
       minRetentionDays: 1,
       requireMerchant: false
@@ -215,6 +220,7 @@ function Cleanup() {
         settlementStatuses: scheduleSettlementStatuses,
         testOrders: scheduleCleanupTestOrders,
         unnotifiedPaid: false,
+        expiredDirectLinks: scheduleCleanupExpiredDirectLinks,
         retentionDays: scheduleCleanupRetentionDays
       })
       // 定时清理固定全商户执行，不受手动选择商户影响
@@ -245,6 +251,7 @@ function Cleanup() {
       settlementStatuses: manualSettlementStatuses,
       testOrders: cleanupTestOrders,
       unnotifiedPaid: cleanupUnnotifiedPaid,
+      expiredDirectLinks: cleanupExpiredDirectLinks,
       retentionDays: cleanupRetentionDays,
       minRetentionDays: 0
     })) return
@@ -263,6 +270,7 @@ function Cleanup() {
         settlementStatuses: manualSettlementStatuses,
         testOrders: cleanupTestOrders,
         unnotifiedPaid: cleanupUnnotifiedPaid,
+        expiredDirectLinks: cleanupExpiredDirectLinks,
         retentionDays: cleanupRetentionDays
       })
       const res = await api.post('/api/admin/cleanup/preview', payload)
@@ -289,6 +297,7 @@ function Cleanup() {
       settlementStatuses: manualSettlementStatuses,
       testOrders: cleanupTestOrders,
       unnotifiedPaid: cleanupUnnotifiedPaid,
+      expiredDirectLinks: cleanupExpiredDirectLinks,
       retentionDays: cleanupRetentionDays,
       minRetentionDays: 0
     })) return
@@ -315,6 +324,7 @@ function Cleanup() {
               settlementStatuses: manualSettlementStatuses,
               testOrders: cleanupTestOrders,
               unnotifiedPaid: cleanupUnnotifiedPaid,
+              expiredDirectLinks: cleanupExpiredDirectLinks,
               retentionDays: cleanupRetentionDays
             }),
             trigger_type: 'manual',
@@ -325,7 +335,7 @@ function Cleanup() {
             const runRes = await api.post('/api/admin/cleanup/run', payload)
             if (runRes.data.code === 0) {
               const info = runRes.data.data || {}
-              message.success(`执行完成：订单 ${info.ordersAffected || 0} 条，结算 ${info.settlementsAffected || 0} 条`)
+              message.success(`执行完成：订单 ${info.ordersAffected || 0} 条，结算 ${info.settlementsAffected || 0} 条，收款链接 ${info.directLinksAffected || 0} 条`)
               fetchLogs()
               runPreview()
             } else {
@@ -449,6 +459,12 @@ function Cleanup() {
               >
                 已支付未回调
               </Checkbox>
+              <Checkbox
+                checked={cleanupExpiredDirectLinks}
+                onChange={(e) => setCleanupExpiredDirectLinks(e.target.checked)}
+              >
+                超时收款链接
+              </Checkbox>
               {STATUS_OPTIONS.map((item) => (
                 <Checkbox
                   key={item.value}
@@ -514,6 +530,7 @@ function Cleanup() {
             <Tag>已退款 {previewData.preview_breakdown?.refunded || 0} 条</Tag>
             <Tag>已支付未回调 {previewData.preview_breakdown?.unnotified_paid || 0} 条</Tag>
             <Tag>测试支付 {previewData.preview_breakdown?.test_orders || 0} 条</Tag>
+            <Tag>超时收款链接 {previewData.preview_breakdown?.expired_direct_links || 0} 条</Tag>
             <Tag>已完成结算 {previewData.preview_breakdown?.settlements_completed || 0} 条</Tag>
             <Tag>未完成结算 {previewData.preview_breakdown?.settlements_unfinished || 0} 条</Tag>
           </div>
@@ -622,6 +639,12 @@ function Cleanup() {
                 onChange={(e) => setScheduleCleanupTestOrders(e.target.checked)}
               >
                 测试支付数据
+              </Checkbox>
+              <Checkbox
+                checked={scheduleCleanupExpiredDirectLinks}
+                onChange={(e) => setScheduleCleanupExpiredDirectLinks(e.target.checked)}
+              >
+                超时收款链接
               </Checkbox>
               {STATUS_OPTIONS.map((item) => (
                 <Checkbox

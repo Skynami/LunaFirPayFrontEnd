@@ -26,6 +26,7 @@ function Merchants() {
   const [showDetail, setShowDetail] = useState(false)
   const [detailData, setDetailData] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [detailLinkPagination, setDetailLinkPagination] = useState({ current: 1, pageSize: 10, total: 0 })
 
   // 支付组列表
   const [payGroups, setPayGroups] = useState([])
@@ -77,20 +78,33 @@ function Merchants() {
   const formatMoney = (v) => parseFloat(v || 0).toFixed(2)
 
   // 查看商户详情
-  const viewDetail = async (row) => {
-    setDetailData(row)
-    setShowDetail(true)
+  const viewDetail = async (row, page = 1) => {
+    if (!showDetail) {
+      setDetailData(row)
+      setShowDetail(true)
+    }
     setDetailLoading(true)
     try {
-      const res = await api.get('/api/admin/merchants/stats', { params: { merchantId: row.user_id } })
+      const res = await api.get('/api/admin/merchants/stats', { params: { merchantId: row.user_id, page, pageSize: 10 } })
       if (res.data.code === 0) {
+        const links = res.data.data.direct_links || { list: [], total: 0, page: 1, pageSize: 10 }
         setDetailData({ ...row, ...res.data.data })
+        setDetailLinkPagination({
+          current: links.page || page,
+          pageSize: links.pageSize || 10,
+          total: links.total || 0
+        })
       }
     } catch (error) {
       console.error('获取详情失败:', error)
     } finally {
       setDetailLoading(false)
     }
+  }
+
+  const handleDetailLinkPageChange = (page) => {
+    if (!detailData?.user_id) return
+    viewDetail(detailData, page)
   }
 
   const editMerchant = (row) => {
@@ -357,6 +371,19 @@ function Merchants() {
     return group ? group.name : '未知'
   }
 
+  const getDirectLinkStatus = (row) => {
+    if ((row.usage_mode || 'single_use') === 'single_use' && Number(row.paid_count || 0) > 0) {
+      return <Tag color="success">已完成</Tag>
+    }
+    if (Number(row.is_expired) === 1) {
+      return <Tag color="red">超时</Tag>
+    }
+    if (Number(row.is_enabled) === 1) {
+      return <Tag color="green">启用</Tag>
+    }
+    return <Tag>停用</Tag>
+  }
+
   // 支付组渲染组件
   const PayGroupCell = ({ value }) => {
     if (!value) return null
@@ -580,6 +607,12 @@ function Merchants() {
                 <span style={{ color: '#722ed1', fontWeight: 600 }}>¥{formatMoney(detailData.balance)}</span>
               </Descriptions.Item>
               <Descriptions.Item label="加入时间">{formatTime(detailData.joined_at)}</Descriptions.Item>
+              <Descriptions.Item label="默认固定Token" span={2}>
+                <span style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>{detailData.direct_pay_token || '-'}</span>
+              </Descriptions.Item>
+              <Descriptions.Item label="默认收款链接" span={2}>
+                <span style={{ wordBreak: 'break-all', fontSize: 12 }}>{detailData.direct_pay_url || '-'}</span>
+              </Descriptions.Item>
               
               <Descriptions.Item label="今日交易额" span={1}>
                 <span style={{ color: '#1890ff', fontWeight: 600 }}>¥{formatMoney(detailData.day_money)}</span>
@@ -610,6 +643,85 @@ function Merchants() {
               </Descriptions.Item>
             </Descriptions>
           )}
+
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>固定金额收款链接</div>
+            <Table
+              size="small"
+              rowKey="id"
+              dataSource={detailData?.direct_links?.list || []}
+              pagination={{
+                current: detailLinkPagination.current,
+                pageSize: detailLinkPagination.pageSize,
+                total: detailLinkPagination.total,
+                showSizeChanger: false,
+                onChange: handleDetailLinkPageChange
+              }}
+              columns={[
+                {
+                  title: 'Token',
+                  dataIndex: 'token',
+                  render: (v) => <span style={{ fontFamily: 'monospace' }}>{v}</span>
+                },
+                {
+                  title: '金额',
+                  dataIndex: 'fixed_amount',
+                  width: 100,
+                  render: (v) => `¥${formatMoney(v)}`
+                },
+                {
+                  title: '策略',
+                  dataIndex: 'usage_mode',
+                  width: 100,
+                  render: (v) => (v === 'multi_use' ? <Tag color="blue">长期</Tag> : <Tag>一次性</Tag>)
+                },
+                {
+                  title: '有效期',
+                  dataIndex: 'expire_hours',
+                  width: 100,
+                  render: (v) => `${v}h`
+                },
+                {
+                  title: '状态',
+                  dataIndex: 'is_enabled',
+                  width: 100,
+                  render: (_, row) => getDirectLinkStatus(row)
+                },
+                {
+                  title: '相关订单',
+                  dataIndex: 'paid_orders',
+                  width: 220,
+                  render: (orders = [], row) => {
+                    if (!orders.length) return '-'
+                    const preview = orders.slice(0, 5)
+                    return (
+                      <div>
+                        {preview.map((order) => (
+                          <div key={order.trade_no}>
+                            <a href={`/admin/orders?tradeNo=${encodeURIComponent(order.trade_no)}`} target="_blank" rel="noreferrer">
+                              {order.trade_no}
+                            </a>
+                          </div>
+                        ))}
+                        {orders.length > preview.length ? (
+                          <div style={{ color: '#999' }}>等 {orders.length} 笔</div>
+                        ) : null}
+                        <div>
+                          <a
+                            href={`/admin/orders?merchantId=${encodeURIComponent(detailData?.id || '')}&directLinkId=${encodeURIComponent(row.id)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            查看全部
+                          </a>
+                        </div>
+                      </div>
+                    )
+                  }
+                }
+              ]}
+            />
+          </div>
         </Spin>
       </Modal>
 

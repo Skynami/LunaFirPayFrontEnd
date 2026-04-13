@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Table, Form, Select, DatePicker, Input, Button, Tag, Modal, Descriptions, message, Space, Popconfirm, Dropdown } from 'antd'
 import { SearchOutlined, DownOutlined, EyeOutlined, CheckCircleOutlined, RollbackOutlined } from '@ant-design/icons'
+import { useSearchParams } from 'react-router-dom'
 import api from '../../utils/api'
 import { formatTime } from '../../utils/time'
 
@@ -31,6 +32,7 @@ const getPayTypeIcon = (type) => {
 }
 
 function Orders() {
+  const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [orders, setOrders] = useState([])
   const [total, setTotal] = useState(0)
@@ -40,6 +42,7 @@ function Orders() {
   const [searchForm, setSearchForm] = useState({
     merchantId: '',
     tradeNo: '',
+    directLinkId: '',
     type: '',
     status: '',
     dateRange: null
@@ -122,15 +125,16 @@ function Orders() {
     return { text: '未知', color: 'default' }
   }
 
-  const fetchOrders = async (page = pagination.current, pageSize = pagination.pageSize) => {
+  const fetchOrders = async (page = pagination.current, pageSize = pagination.pageSize, formOverride = null) => {
     setLoading(true)
     try {
+      const activeForm = formOverride || searchForm
       const params = {
         page,
         pageSize,
-        ...searchForm,
-        startDate: searchForm.dateRange?.[0]?.format('YYYY-MM-DD') || '',
-        endDate: searchForm.dateRange?.[1]?.format('YYYY-MM-DD') || ''
+        ...activeForm,
+        startDate: activeForm.dateRange?.[0]?.format('YYYY-MM-DD') || '',
+        endDate: activeForm.dateRange?.[1]?.format('YYYY-MM-DD') || ''
       }
       delete params.dateRange
 
@@ -159,6 +163,7 @@ function Orders() {
     setSearchForm({
       merchantId: '',
       tradeNo: '',
+      directLinkId: '',
       type: '',
       status: '',
       dateRange: null
@@ -310,6 +315,22 @@ function Orders() {
   }
 
   useEffect(() => {
+    const tradeNoFromQuery = (searchParams.get('tradeNo') || '').trim()
+    const directLinkIdFromQuery = (searchParams.get('directLinkId') || '').trim()
+    const merchantIdFromQuery = (searchParams.get('merchantId') || '').trim()
+    if (tradeNoFromQuery || directLinkIdFromQuery || merchantIdFromQuery) {
+      const nextForm = {
+        merchantId: merchantIdFromQuery,
+        tradeNo: tradeNoFromQuery,
+        directLinkId: directLinkIdFromQuery,
+        type: '',
+        status: '',
+        dateRange: null
+      }
+      setSearchForm(nextForm)
+      fetchOrders(1, pagination.pageSize, nextForm)
+      return
+    }
     fetchOrders()
   }, [])
 
@@ -444,6 +465,15 @@ function Orders() {
               placeholder="平台/商户订单号"
               allowClear
               style={{ width: 180 }}
+            />
+          </Form.Item>
+          <Form.Item label="固定链接ID">
+            <Input
+              value={searchForm.directLinkId}
+              onChange={(e) => setSearchForm({ ...searchForm, directLinkId: e.target.value })}
+              placeholder="输入 directLinkId"
+              allowClear
+              style={{ width: 150 }}
             />
           </Form.Item>
           <Form.Item label="支付类型">
@@ -584,8 +614,10 @@ function Orders() {
                 {currentOrder.refund_reason || '测试支付用户取消'}
               </Descriptions.Item>
             )}
-            <Descriptions.Item label="回调地址" span={2}>
-              <span style={{ wordBreak: 'break-all', fontSize: 12 }}>{currentOrder.notify_url || '-'}</span>
+            <Descriptions.Item label={currentOrder.direct_mode === 'fixed' ? '发起Token' : '回调地址'} span={2}>
+              <span style={{ wordBreak: 'break-all', fontSize: 12 }}>
+                {currentOrder.direct_mode === 'fixed' ? (currentOrder.direct_token || '-') : (currentOrder.notify_url || '-')}
+              </span>
             </Descriptions.Item>
             <Descriptions.Item label="跳转地址" span={2}>
               <span style={{ wordBreak: 'break-all', fontSize: 12 }}>{currentOrder.return_url || '-'}</span>
