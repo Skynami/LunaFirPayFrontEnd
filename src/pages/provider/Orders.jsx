@@ -400,21 +400,6 @@ function Orders() {
         return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>
       }
     },
-    {
-      title: '理由',
-      dataIndex: 'refund_reason',
-      width: 180,
-      ellipsis: true,
-      render: (_, row) => {
-        if (row.refund_status === 2) {
-          return row.refund_reason || '退款失败'
-        }
-        if (row.order_type === 'test' && row.status === 2 && row.refund_status !== 1) {
-          return row.refund_reason || '测试支付用户取消'
-        }
-        return '-'
-      }
-    },
     { 
       title: '时间', 
       width: 170,
@@ -610,7 +595,7 @@ function Orders() {
                 {currentOrder.direct_mode === 'fixed' ? (currentOrder.direct_token || '-') : (currentOrder.notify_url || '-')}
               </span>
             </Descriptions.Item>
-            <Descriptions.Item label="跳转地址" span={2}>
+            <Descriptions.Item label="理由" span={2}>
               <span style={{ wordBreak: 'break-all', fontSize: 12 }}>{currentOrder.return_url || '-'}</span>
             </Descriptions.Item>
           </Descriptions>

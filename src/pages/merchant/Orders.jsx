@@ -598,7 +598,7 @@ function Orders() {
                 {currentOrder.direct_mode === 'fixed' ? (currentOrder.direct_token || '-') : (currentOrder.notify_url || '-')}
               </span>
             </Descriptions.Item>
-            <Descriptions.Item label="跳转地址" span={2}>
+            <Descriptions.Item label="理由" span={2}>
               <span style={{ wordBreak: 'break-all', fontSize: 12 }}>{currentOrder.return_url || '-'}</span>
             </Descriptions.Item>
           </Descriptions>
