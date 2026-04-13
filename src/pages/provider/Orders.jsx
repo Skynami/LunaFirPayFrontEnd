@@ -467,15 +467,6 @@ function Orders() {
               style={{ width: 180 }}
             />
           </Form.Item>
-          <Form.Item label="固定链接ID">
-            <Input
-              value={searchForm.directLinkId}
-              onChange={(e) => setSearchForm({ ...searchForm, directLinkId: e.target.value })}
-              placeholder="输入 directLinkId"
-              allowClear
-              style={{ width: 150 }}
-            />
-          </Form.Item>
           <Form.Item label="支付类型">
             <Select
               value={searchForm.type}
